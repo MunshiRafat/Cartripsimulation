@@ -1,0 +1,300 @@
+<html>
+
+<head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no">
+    <meta charset="utf-8">
+    <title>Google Maps</title>
+    <style>
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+        
+        #map {
+            height: 100%;
+        }
+        
+        #floating-panel {
+            position: absolute;
+            top: 10px;
+            left: 25%;
+            z-index: 5;
+            background-color: #fff;
+            padding: 5px;
+            border: 1px solid #999;
+            text-align: center;
+            font-family: 'Roboto', 'sans-serif';
+            line-height: 30px;
+            padding-left: 10px;
+        }
+        
+        #right-panel {
+            font-family: 'Roboto', 'sans-serif';
+            line-height: 30px;
+            padding-left: 10px;
+        }
+        
+        #right-panel select,
+        #right-panel input {
+            font-size: 15px;
+        }
+        
+        #right-panel select {
+            width: 100%;
+        }
+        
+        #right-panel i {
+            font-size: 12px;
+        }
+        
+        #right-panel {
+            height: 100%;
+            float: right;
+            width: 390px;
+            overflow: auto;
+        }
+        
+        #map {
+            margin-right: 400px;
+        }
+        
+        #floating-panel {
+            background: #fff;
+            padding: 5px;
+            font-size: 14px;
+            font-family: Arial;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 2px rgba(33, 33, 33, 0.4);
+            display: none;
+        }
+        
+        @media print {
+            #map {
+                height: 500px;
+                margin: 0;
+            }
+            #right-panel {
+                float: none;
+                width: auto;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+
+    <div id="floating-panel">
+
+        <strong>Set your Speed first:</strong>
+        <input type="number" id="speed" value="50" /><br />
+
+        <strong>Start:</strong>
+        <input type="text" size="80" maxlength="200" id="start" value="Aligarh" /><br />
+
+        <br>
+        <strong>End:</strong>
+        <input type="text" size="80" maxlength="200" id="end" value="Delhi" /><br />
+
+    </div>
+    <div id="right-panel"></div>
+
+    <div id="map"></div>
+
+
+    <script>
+        function initMap() {
+            var map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 7,
+                mapTypeId: 'terrain',
+                center: {
+                    lat: 27.8973944, //center as Aligarh
+                    lng: 78.0880129
+                }
+            });
+
+            var directionsDisplay = new google.maps.DirectionsRenderer();
+            var directionsService = new google.maps.DirectionsService;
+            var markers = [];
+
+
+            var speed = document.getElementById('speed').value; // 50 km/h by default
+
+            var geocoder = new google.maps.Geocoder();
+            var startPos;
+
+            function geocodeAddress(geocoder, resultsMap) {
+                var address = document.getElementById('start').value;
+                var end = document.getElementById('end').value;
+                geocoder.geocode({
+                    'address': address
+                }, function(results, status) {
+                    if (status === 'OK') {
+                        resultsMap.setCenter(results[0].geometry.location); //to always set the start address at the center of the map
+
+                    } else {
+                        alert('Geocode was not successful for the following reason: ' + status);
+                    }
+                });
+            }
+
+            directionsDisplay.setMap(map);
+            directionsDisplay.setPanel(document.getElementById('right-panel'));
+
+            var control = document.getElementById('floating-panel');
+            control.style.display = 'block';
+            map.controls[google.maps.ControlPosition.TOP_CENTER].push(control);
+
+            var onChangeHandler = function() {
+                //clear all previous markers
+                for (var i = 0; i < markers.length; i++) {
+
+                    markers[i].setMap(null);
+                }
+
+                markers = [];
+                calculateAndDisplayRoute(directionsService, directionsDisplay);
+                geocodeAddress(geocoder, map);
+            };
+            document.getElementById('start').addEventListener('change', onChangeHandler);
+            document.getElementById('end').addEventListener('change', onChangeHandler);
+            document.getElementById('speed').addEventListener('change', onChangeHandler);
+
+
+            function calculateAndDisplayRoute(directionsService, directionsDisplay) {
+                var start = document.getElementById('start').value;
+                var end = document.getElementById('end').value;
+
+                directionsService.route({
+                    origin: start,
+                    destination: end,
+                    travelMode: 'DRIVING'
+                }, function(response, status) {
+                    if (status === 'OK') {
+                        directionsDisplay.setDirections(response);
+                        var route = response.routes[0];
+                        var k = 0;
+                        var m = 0;
+
+                        var lat1 = [];
+                        var lng1 = [];
+                        var poly = [];
+                        // code to get all latitude and longitudes of all points in the path from start to end addresses
+                        for (var i = 0; i < route.legs.length; i++) {
+                            var routeSegment = i + 1;
+
+                            for (var j = 0; j < route.legs[i].steps.length; j++) {
+
+                                poly[k] = google.maps.geometry.encoding.decodePath(route.legs[i].steps[j].polyline.points);
+                                k++;
+                            }
+                            for (var i = 0; i < k; i++) {
+                                for (var j = 0; j < poly[i].length; j++) {
+                                    lat1[m] = poly[i][j].lat();
+                                    lng1[m] = poly[i][j].lng();
+                                    m++;
+                                }
+
+
+                            }
+
+                        }
+
+                        startPos = [lat1[0], lng1[0]];
+                        marker = new google.maps.Marker({
+                            position: new google.maps.LatLng(startPos[0], startPos[1]),
+                            //  icon: image,
+                            map: map
+                        });
+
+                        var alllatlngpoly = [];
+
+                        var polyarg = [];
+
+                        for (var i = 0; i < m; i++) {
+                            alllatlngpoly[i] = [lat1[i], lng1[i]];
+                            polyarg.push(alllatlngpoly[i]);
+                            // finally got all the lats and lngs of in an array
+                        }
+                        markers.push(marker);
+                        animateMarker(marker, polyarg, document.getElementById('speed').value);
+
+                    } else {
+                        window.alert('Directions request failed due to ' + status);
+                    }
+                });
+            }
+        }
+
+
+
+
+        function animateMarker(marker, coords, km_h) {
+            var target = 0;
+            var km_h = km_h || 50;
+            var delay = 5;
+
+            function goToPoint() {
+                var lat = marker.position.lat();
+                var lng = marker.position.lng();
+                var step = km_h / 36; // in meters
+
+                var dest = new google.maps.LatLng(
+                    coords[target][0], coords[target][1]);
+
+                var distance =
+                    google.maps.geometry.spherical.computeDistanceBetween(
+                        dest, marker.position); // in meters
+
+
+
+                var numStep = distance / step;
+
+                var i = 0;
+                var deltaLat = (coords[target][0] - lat) / numStep;
+                var deltaLng = (coords[target][1] - lng) / numStep;
+
+                function moveMarker() {
+                    stopanim = 1;
+                    lat += deltaLat;
+                    lng += deltaLng;
+                    i += step;
+                    if (i < distance) {
+                        marker.setPosition(new google.maps.LatLng(lat, lng));
+                        //an svg image for rotation along the path
+                        var car = "M17.402,0H5.643C2.526,0,0,3.467,0,6.584v34.804c0,3.116,2.526,5.644,5.643,5.644h11.759c3.116,0,5.644-2.527,5.644-5.644 V6.584C23.044,3.467,20.518,0,17.402,0z M22.057,14.188v11.665l-2.729,0.351v-4.806L22.057,14.188z M20.625,10.773 c-1.016,3.9-2.219,8.51-2.219,8.51H4.638l-2.222-8.51C2.417,10.773,11.3,7.755,20.625,10.773z M3.748,21.713v4.492l-2.73-0.349 V14.502L3.748,21.713z M1.018,37.938V27.579l2.73,0.343v8.196L1.018,37.938z M2.575,40.882l2.218-3.336h13.771l2.219,3.336H2.575z M19.328,35.805v-7.872l2.729-0.355v10.048L19.328,35.805z";
+                        var icon = {
+                            path: car,
+                            scale: .7,
+                            strokeColor: 'white',
+                            strokeWeight: .10,
+                            fillOpacity: 1,
+                            fillColor: '#404040',
+                            offset: '5%',
+                            anchor: new google.maps.Point(10, 25)
+                        };
+                        var heading = google.maps.geometry.spherical.computeHeading(new google.maps.LatLng(lat - deltaLat, lng - deltaLng), new google.maps.LatLng(lat, lng));
+                        icon.rotation = heading;
+                        marker.setIcon(icon);
+                        setTimeout(moveMarker, delay);
+                    } else {
+                        marker.setPosition(dest);
+
+                        target++;
+                        if (target == coords.length) {
+                            target--;
+                        }
+                        setTimeout(goToPoint, delay);
+                    }
+                }
+                moveMarker();
+            }
+            goToPoint();
+        }
+    </script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAaou270zeH9e0og0y6C-38UpDY3R9AUnc&libraries=geometry&callback=initMap" async defer></script>
+</body>
+
+</html>
